@@ -1,18 +1,51 @@
 
 import pybaseball
+import statsapi
 import pandas as pd
+from datetime import date, timedelta
 
 
 class Batting:
 
-    @staticmethod
-    def getSeasonal():
+    def __init__(self, dateEntry = None):
 
-        dat = pd.DataFrame()
-        for season in range(1950, 2026, 1):
-            iter = pybaseball.batting_stats(season)
-            dat = pd.concat([dat, iter], axis = 1)
+        if dateEntry is None:
+            self.evaluationDate = date.today() - timedelta(days = 1) 
+        else:
+            self.evaluationDate = dateEntry
+    
+    def getDaily(self):
 
-        return dat
-    
-    
+        games = statsapi.schedule(date = self.evaluationDate)
+
+        Batters = pd.DataFrame()
+        for game in games:
+
+            gameID = game['game_id']
+            gameDate = game['game_date']
+            awayTeam = game['away_name']
+            homeTeam = game['home_name']
+            
+            ### Pull Box Score for game iteration
+            box = statsapi.boxscore_data(gameID)
+
+            ### Pull Data for Home Players
+            homePlayers = pd.DataFrame(box['homeBatters']).iloc[1:]
+            homePlayers['TeamName'] = homeTeam
+            homePlayers['Date'] = gameDate
+            homePlayers['IsHome'] = 1
+            homePlayers['OpposingTeamName'] = awayTeam
+            Batters = pd.concat([Batters, homePlayers])
+            del homePlayers
+
+            ### Pull Data for Away Players
+            awayPlayers = pd.DataFrame(box['awayBatters']).iloc[1:]
+            awayPlayers['TeamName'] = awayTeam
+            awayPlayers['Date'] = gameDate
+            awayPlayers['IsHome'] = 0
+            awayPlayers['OpposingTeamName'] = homeTeam
+            Batters = pd.concat([Batters, awayPlayers])
+            del awayPlayers 
+
+        return Batters
+

@@ -10,31 +10,14 @@ import pyarrow
 with open(f'{os.path.dirname(os.path.abspath(__file__))}\\Properties\\launchSettings.json', 'r') as f:
     args = json.load(f)
 
-def main(args = args):
+def main():
 
-    ### Read arguments
-    localContainer = args['container']
-
-    ### Source Data; Create DataFrame
-    battingExtractor = Batting()
-    battingSeasonal = battingExtractor.getSeasonal()
-
-    ## Pitching
-    pitchingExtractor = Pitching()
-    pitchingSeasonal - picthingExtractor.getSeasonal()
-
-    ### Assign pandas objects to table
-    tablePairs = [
-        (battingSeasonal, 'StagingMLBOffensiveSeasonalLog'),
-        (pitchingSeasonal, 'StagingMLBPitchingSeasonalLog')
-    ]
-
-    ### Iterate through table pairs; write to file
-    for tuple in tablePairs:
-
-        dat: pd.DataFrame = tuple[0]
-        dat.to_parquet(f'{localContainer}{tuple[1]}.parquet', engine = 'pyarrow')
+    batting = Batting('2025-07-11')
+    dat = batting.getDaily()
+    print(dat)
     
+
+
     
 if __name__ == '__main__':
     main()
