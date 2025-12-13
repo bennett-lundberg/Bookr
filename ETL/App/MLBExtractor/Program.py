@@ -7,7 +7,7 @@ import json
 import os
 import pyarrow
 
-with open(f'{os.path.dirname(os.path.abspath(__file__))}\\Properties\\launchSettings.json', 'r') as f:
+with open(f'{os.path.dirname(os.path.abspath(__file__))}/Properties/launchSettings.json', 'r') as f:
     args = json.load(f)
 
 def main():
@@ -16,7 +16,9 @@ def main():
     dat = batting.getDaily()
     print(dat)
     
-
+    batting = Pitching('2025-07-11')
+    dat = batting.getDaily()
+    print(dat)
 
     
 if __name__ == '__main__':
