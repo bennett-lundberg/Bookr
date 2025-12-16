@@ -1,8 +1,10 @@
 
-import pybaseball
 import statsapi
 import pandas as pd
+import time
+
 from datetime import date, timedelta
+from Lib.Executor import Executor
 
 
 class Pitching:
@@ -10,43 +12,56 @@ class Pitching:
     def __init__(self, dateEntry = None):
 
         if dateEntry is None:
-            self.evaluationDate = date.today() - timedelta(days = 1) 
+            self.evaluationDate = date.today() - timedelta(days = 1)
+            Executor.send('Starting Pitching Extractor from MLB-StatsAPI: No date provided - Running for current date')
         else:
             self.evaluationDate = dateEntry
+            Executor.send(f'Starting Batting Extractor from MLB-StatsAPI: Evaluating at {self.evaluationDate}')
     
     def getDaily(self):
 
-        games = statsapi.schedule(date = self.evaluationDate)
+        st = time.time()
+        try:
+            games = statsapi.schedule(date = self.evaluationDate)
 
-        Pitchers = pd.DataFrame()
-        for game in games:
+            Pitchers = pd.DataFrame()
+            for game in games:
 
-            gameID = game['game_id']
-            gameDate = game['game_date']
-            awayTeam = game['away_id']
-            homeTeam = game['home_id']
-            
-            ### Pull Box Score for game iteration
-            box = statsapi.boxscore_data(gameID)
 
-            ### Pull Data for Home Players
-            homePlayers = pd.DataFrame(box['homePitchers']).iloc[1:]
-            homePlayers['TeamID'] = homeTeam
-            homePlayers['Date'] = gameDate
-            homePlayers['IsHome'] = 1
-            homePlayers['OpposingTeamID'] = awayTeam
+                gameID = game['game_id']
+                gameDate = game['game_date']
+                awayTeam = game['away_id']
+                homeTeam = game['home_id']
+                Executor.send(f'Extracting Pitching Data for GameID {gameID}')
 
-            Pitchers = pd.concat([Pitchers, homePlayers])
-            del homePlayers
+                ### Pull Box Score for game iteration
+                box = statsapi.boxscore_data(gameID)
 
-            ### Pull Data for Away Players
-            awayPlayers = pd.DataFrame(box['awayPitchers']).iloc[1:]
-            awayPlayers['TeamID'] = awayTeam
-            awayPlayers['Date'] = gameDate
-            awayPlayers['IsHome'] = 0
-            awayPlayers['OpposingTeamID'] = homeTeam
-            Pitchers = pd.concat([Pitchers, awayPlayers])
-            del awayPlayers 
+                ### Pull Data for Home Players
+                homePlayers = pd.DataFrame(box['homePitchers']).iloc[1:]
+                homePlayers['TeamID'] = homeTeam
+                homePlayers['Date'] = gameDate
+                homePlayers['IsHome'] = 1
+                homePlayers['OpposingTeamID'] = awayTeam
 
-        return Pitchers
+                Pitchers = pd.concat([Pitchers, homePlayers])
+                del homePlayers
+
+                ### Pull Data for Away Players
+                awayPlayers = pd.DataFrame(box['awayPitchers']).iloc[1:]
+                awayPlayers['TeamID'] = awayTeam
+                awayPlayers['Date'] = gameDate
+                awayPlayers['IsHome'] = 0
+                awayPlayers['OpposingTeamID'] = homeTeam
+                Pitchers = pd.concat([Pitchers, awayPlayers])
+                del awayPlayers
+
+            et = time.time()
+            Executor.send(f'Pitching Extractor from MLB-StatsAPI: Succeeded in {et - st:.2f}')
+            return Pitchers.drop(columns = ['namefield', 'name', 'note'])
+        
+        except Exception as e:
+            et = time.time()
+            Executor.send(f'Pitching Extractor from MLB-StatsAPI: Failed in {et - st:.2f}')
+            print(f'Error: {e}')
 
