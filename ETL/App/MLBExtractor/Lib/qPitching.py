@@ -42,6 +42,7 @@ class Pitching:
                 homePlayers['TeamID'] = homeTeam
                 homePlayers['Date'] = gameDate
                 homePlayers['IsHome'] = 1
+                homePlayers['GameID'] = gameID
                 homePlayers['OpposingTeamID'] = awayTeam
 
                 Pitchers = pd.concat([Pitchers, homePlayers])
@@ -52,16 +53,44 @@ class Pitching:
                 awayPlayers['TeamID'] = awayTeam
                 awayPlayers['Date'] = gameDate
                 awayPlayers['IsHome'] = 0
+                awayPlayers['GameID'] = gameID
                 awayPlayers['OpposingTeamID'] = homeTeam
                 Pitchers = pd.concat([Pitchers, awayPlayers])
                 del awayPlayers
 
             et = time.time()
             Executor.send(f'Pitching Extractor from MLB-StatsAPI: Succeeded in {et - st:.2f}')
-            return Pitchers.drop(columns = ['namefield', 'name', 'note'])
+            return self.frameDaily(Pitchers)
         
         except Exception as e:
             et = time.time()
             Executor.send(f'Pitching Extractor from MLB-StatsAPI: Failed in {et - st:.2f}')
             print(f'Error: {e}')
 
+    @staticmethod
+    def frameDaily(dat: pd.DataFrame):
+
+        ### Drop Unneeded String Fields and Set Column Order
+        dat = dat[[
+            'personId', 'Date', 'GameID', 'TeamID', 'OpposingTeamID', 'IsHome', 'ip', 'h', 'r',
+            'er', 'bb', 'k', 'hr', 'era', 'p', 's'
+        ]]
+
+        ### Rename Columns
+        dat = dat.rename(
+            columns = {
+                'personId': 'PlayerID',
+                'ip': 'IP',
+                'h': 'Hits',
+                'r': 'Runs',
+                'er': 'EarnedRuns',
+                'bb': 'BB',
+                'k': 'K',
+                'hr': 'HR',
+                'era': 'ERA',
+                'p': 'Pitches',
+                's': 'Strikes'
+            }
+        )
+
+        return dat

@@ -43,6 +43,7 @@ class Batting:
                 homePlayers['Date'] = gameDate
                 homePlayers['IsHome'] = 1
                 homePlayers['OpposingTeamID'] = awayTeam
+                homePlayers['GameID'] = gameID
                 Batters = pd.concat([Batters, homePlayers])
                 del homePlayers
 
@@ -52,14 +53,51 @@ class Batting:
                 awayPlayers['Date'] = gameDate
                 awayPlayers['IsHome'] = 0
                 awayPlayers['OpposingTeamID'] = homeTeam
+                awayPlayers['GameID'] = gameID
                 Batters = pd.concat([Batters, awayPlayers])
                 del awayPlayers 
 
             et = time.time()
             Executor.send(f'Batting Extractor from MLB-StatsAPI: Succeeded in {et - st:.2f}')
-            return Batters.drop(columns = ['namefield', 'substitution', 'note', 'name'])
+            return self.frameDaily(Batters)
 
         except Exception as e:
             et = time.time()
             Executor.send(f'Batting Extractor from MLB-StatsAPI: Failed in {et - st:.2f}')
             print(f'Error: {e}')
+    
+    @staticmethod
+    def frameDaily(dat: pd.DataFrame):
+
+        ### Drop Unneeded String Fields and Set Column Order
+        dat = dat[[
+            'personId', 'Date', 'GameID', 'TeamID', 'OpposingTeamID', 'IsHome', 'position', 'battingOrder', 'ab', 'r',
+            'h', 'doubles', 'triples', 'hr', 'rbi', 'sb', 'bb', 'k', 'lob', 'avg', 'obp', 'slg', 'ops'
+        ]]
+
+        ### Rename Columns
+        dat = dat.rename(
+            columns = {
+                'personId': 'PlayerID',
+                'position': 'Position',
+                'battingOrder': 'BattingOrder',
+                'ab': 'AB',
+                'r': 'Runs',
+                'h': 'Hits',
+                'doubles': 'Doubles',
+                'triples': 'Triples',
+                'hr': 'HR',
+                'rbi': 'RBI',
+                'sb': 'SB',
+                'bb': 'BB',
+                'k': 'K',
+                'lob': 'LOB',
+                'avg': 'AVG',
+                'obp': 'OBP',
+                'slg': 'SLG',
+                'ops': 'OPS'
+
+            }
+        )
+
+        return dat

@@ -68,10 +68,10 @@ class DimensionImporter:
                     dimTab = pd.concat([dimTab, pd.DataFrame(iter)])
                     Executor.send(f'Running DimensionImporter.ImportTeams from MLB-StatsAPI: Instance Added: {awayID}, {awayName}')
 
-            ### Write to Parquet - this will be updated to a table
-            dimTab.to_parquet(table, index = False)
             et = time.time()
             Executor.send(f'DimensionImporter.ImportTeams from MLB-StatsAPI: Succeeded in {et - st:.2f}')
+
+            return dimTab
 
         except Exception as e:
 
@@ -129,9 +129,9 @@ class DimensionImporter:
 
                 players = pd.concat([players, pd.DataFrame(playerIter)])
                 
-            players.to_parquet(table, index = False)
             et = time.time()
             Executor.send(f'DimensionImporter.ImportPlayers from MLB-StatsAPI: Succeeded in {et - st:.2f}')
+            return players
 
         except Exception as e:
 
