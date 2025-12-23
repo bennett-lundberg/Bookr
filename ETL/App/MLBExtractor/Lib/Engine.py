@@ -1,5 +1,6 @@
 import pyodbc
 import sqlalchemy
+from urllib.parse import quote_plus
 import pandas as pd
 
 class TableWriter:
@@ -19,6 +20,9 @@ class TableWriter:
 
         self.conn = pyodbc.connect(connStr)
         self.crsr = self.conn.cursor()
+        odbc_str = quote_plus(connStr)
+        self.bulkConnection = sqlalchemy.create_engine("mssql+pyodbc:///?odbc_connect=%s" % odbc_str)
+        self.engine = self.bulkConnection
 
     def run(self, qry: str):
 
@@ -27,7 +31,6 @@ class TableWriter:
 
     
     def write(self, pdTable: pd.DataFrame, sqlTable: str):
-
         pdTable.to_sql(sqlTable, con = self.engine, if_exists = "replace", index = False)
 
 class TableReader:

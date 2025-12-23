@@ -1,60 +1,49 @@
 
-from Lib.qBatting import Batting
-from Lib.qPitching import Pitching
-from Lib.qDimension import DimensionImporter
 from Lib.Executor import Executor
 from Lib.Engine import TableWriter
+from BatchGameImporter import BatchGameImporter
 
 import argparse
+import multiprocessing
+import statsapi
 import json
 import os
 
 with open(f'{os.path.dirname(os.path.abspath(__file__))}/Properties/launchSettings.json', 'r') as f:
     args = json.load(f)
 
-def main(date):
+def main(args = args):
 
-    BookrDev = TableWriter(args)
+    evaluationDate: str = args['date']
+    print(f"MLBExtractor starting with args: {args}")
+    print(f"Evaluation date: {evaluationDate}")
 
-    Executor.send('Running Extraction for Batting Statistics')
-    batting = Batting(date)
-    battingDaily = batting.getDaily()
-    if battingDaily is not None and len(battingDaily) > 0:
-        for _, row in battingDaily.iterrows(): 
-            formatted = [] 
-            for val in row.values: 
-                if isinstance(val, str): 
-                    formatted.append(f"'{val}'") # wrap strings in single quotes 
-                else: 
-                    formatted.append(str(val)) # leave numbers as-is 
-            iter = ",".join(formatted)
+    gameDict = statsapi.schedule(evaluationDate)
 
-            try: BookrDev.run(f"INSERT INTO MLB.StagingGameLogBatting SELECT {iter}")
-            except: continue
-    
-    Executor.send('Running Extraction for Pitching Statistics')
-    pitching = Pitching(date)
-    pitchingDaily = pitching.getDaily()
-    if pitchingDaily is not None and len(pitchingDaily) > 0:
-        for _, row in pitchingDaily.iterrows(): 
-            formatted = [] 
-            for val in row.values: 
-                if isinstance(val, str): 
-                    formatted.append(f"'{val}'")
-                else: 
-                    formatted.append(str(val))
-            iter = ",".join(formatted)
+    if not gameDict:
+        print("No games found for the given date. Exiting.")
+        return
 
-            try: BookrDev.run(f"INSERT INTO MLB.StagingGameLogPitching SELECT {iter}")
-            except: continue
+    with multiprocessing.Pool() as pool:
+        try:
+            pool.map(runJob, gameDict)
+        except Exception as e:
+            import traceback
+            print("Exception during pool.map:", e)
+            traceback.print_exc()
 
-    if pitchingDaily is not None and len(pitchingDaily) > 0 and battingDaily is not None and len(battingDaily) > 0:
-        importer = DimensionImporter(dateEntry = date)
-        importer.ImportTeams()
-        importer.ImportPlayers(battingDaily.PlayerID.values, pitchingDaily.PlayerID.values)
-        importer.ImportGames()
-        importer.ImportVenues()
+def runJob(payload: dict):
+    try:
+        batchImporter = BatchGameImporter(gameData = payload, args = args['credentials'])
+        batchImporter.ImportGame()
+        batchImporter.ImportTeams()
+        batchImporter.ImportVenues()
+        batchImporter.DailyBattingStats()
+        batchImporter.DailyPitchingStats()
+    except Exception as e:
+        import traceback
+        print(f"Exception in runJob for payload: {payload}")
+        traceback.print_exc()
 
-    
 if __name__ == '__main__':
     main()

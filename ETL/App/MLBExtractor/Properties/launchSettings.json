@@ -1,5 +1,7 @@
 {
-    "date": "2025-07-11",
-    "username": "bennett.lundberg",
-    "password": "Valleyforge0!"
+    "date": "2025-07-18",
+    "credentials": {
+        "username": "bennett.lundberg",
+        "password": "Valleyforge0!"
+    }
 }
