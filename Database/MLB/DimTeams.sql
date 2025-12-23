@@ -1,0 +1,8 @@
+
+DROP TABLE IF EXISTS MLB.DimTeams
+
+CREATE TABLE MLB.DimTeams (
+    TeamID INT PRIMARY KEY,
+    TeamName VARCHAR(50) NOT NULL,
+    Modified DATE
+)

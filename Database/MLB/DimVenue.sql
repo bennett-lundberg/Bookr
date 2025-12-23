@@ -1,0 +1,7 @@
+
+DROP TABLE IF EXISTS MLB.DimVenues
+
+CREATE TABLE MLB.DimVenues (
+    VenueID INT PRIMARY KEY,
+    VenueName VARCHAR(100)
+)
