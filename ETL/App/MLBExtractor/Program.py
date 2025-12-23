@@ -5,51 +5,55 @@ from Lib.qDimension import DimensionImporter
 from Lib.Executor import Executor
 from Lib.Engine import TableWriter
 
-import pandas as pd
+import argparse
 import json
 import os
 
 with open(f'{os.path.dirname(os.path.abspath(__file__))}/Properties/launchSettings.json', 'r') as f:
     args = json.load(f)
 
-def main(args = args):
+def main(date):
 
     BookrDev = TableWriter(args)
 
-    exit = 0
     Executor.send('Running Extraction for Batting Statistics')
-    batting = Batting('2025-07-11')
+    batting = Batting(date)
     battingDaily = batting.getDaily()
-    for _, row in battingDaily.iterrows(): 
-        formatted = [] 
-        for val in row.values: 
-            if isinstance(val, str): 
-                formatted.append(f"'{val}'") # wrap strings in single quotes 
-            else: 
-                formatted.append(str(val)) # leave numbers as-is 
-        iter = ",".join(formatted)
+    if battingDaily is not None and len(battingDaily) > 0:
+        for _, row in battingDaily.iterrows(): 
+            formatted = [] 
+            for val in row.values: 
+                if isinstance(val, str): 
+                    formatted.append(f"'{val}'") # wrap strings in single quotes 
+                else: 
+                    formatted.append(str(val)) # leave numbers as-is 
+            iter = ",".join(formatted)
 
-        try: BookrDev.run(f"INSERT INTO StagingMLBGameLogBatting SELECT {iter}")
-        except: continue
+            try: BookrDev.run(f"INSERT INTO MLB.StagingGameLogBatting SELECT {iter}")
+            except: continue
     
     Executor.send('Running Extraction for Pitching Statistics')
-    pitching = Pitching('2025-07-11')
+    pitching = Pitching(date)
     pitchingDaily = pitching.getDaily()
-    for _, row in pitchingDaily.iterrows(): 
-        formatted = [] 
-        for val in row.values: 
-            if isinstance(val, str): 
-                formatted.append(f"'{val}'")
-            else: 
-                formatted.append(str(val))
-        iter = ",".join(formatted)
+    if pitchingDaily is not None and len(pitchingDaily) > 0:
+        for _, row in pitchingDaily.iterrows(): 
+            formatted = [] 
+            for val in row.values: 
+                if isinstance(val, str): 
+                    formatted.append(f"'{val}'")
+                else: 
+                    formatted.append(str(val))
+            iter = ",".join(formatted)
 
-        try: BookrDev.run(f"INSERT INTO StagingMLBGameLogPitching SELECT {iter}")
-        except: continue
+            try: BookrDev.run(f"INSERT INTO MLB.StagingGameLogPitching SELECT {iter}")
+            except: continue
 
-    importer = DimensionImporter(dateEntry = '2025-07-11')
-    importer.ImportTeams()
-    importer.ImportPlayers(battingDaily.PlayerID.values, pitchingDaily.PlayerID.values)
+    if pitchingDaily is not None and len(pitchingDaily) > 0 and battingDaily is not None and len(battingDaily) > 0:
+        importer = DimensionImporter(dateEntry = date)
+        importer.ImportTeams()
+        importer.ImportPlayers(battingDaily.PlayerID.values, pitchingDaily.PlayerID.values)
+        importer.ImportGames()
+        importer.ImportVenues()
 
     
 if __name__ == '__main__':

@@ -1,8 +1,0 @@
-
-DROP TABLE IF EXISTS DimMLBTeams
-
-CREATE TABLE DimMLBTeams (
-    TeamID INT PRIMARY KEY,
-    TeamName VARCHAR(50) NOT NULL,
-    Modified DATE
-)
