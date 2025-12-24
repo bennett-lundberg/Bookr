@@ -12,7 +12,7 @@ BEGIN
     INTO #stagingTemp
     FROM mlb.StagingGameLogPitching A
     JOIN mlb.DimGames B ON A.GameID = B.GameID
-    WHERE PlayerID = @PlayerID AND YEAR(Date) = @Season
+    WHERE PlayerID = @PlayerID AND YEAR(Date) = @Season AND GameTypeID = 1
 
     -- Create a temporary table to hold cumulative data
     SELECT PlayerID,

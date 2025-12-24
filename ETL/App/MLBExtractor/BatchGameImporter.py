@@ -4,11 +4,13 @@ import datetime
 import pandas as pd
 import pyodbc
 from Lib.Engine import TableWriter
+from Lib.Executor import Executor
 
 class BatchGameImporter:
 
     def __init__(self, gameData, args):
 
+        
         self.GameID = gameData['game_id']
         self.GameDate = gameData['game_date']
         self.GameType = f"{gameData['game_type']}"
@@ -22,11 +24,13 @@ class BatchGameImporter:
         self.VenueID = gameData['venue_id']
         self.VenueName = f"{gameData['venue_name']}"
         self.BoxScore = statsapi.boxscore_data(self.GameID)
+        Executor.send(f'BatchGameImporter: Initializing Job for GameID {self.GameID} on {self.GameDate}')
 
         self.Writer = TableWriter(args)
         
     def ImportGame(self):
 
+        Executor.send(f'BatchGameImporter.ImportGame: Importing GameID {self.GameID}')
         try:
             self.Writer.run(
                 f"""
@@ -62,11 +66,14 @@ class BatchGameImporter:
                 """ 
             )
 
+            Executor.send(f'BatchGameImporter.ImportGame: Importing GameID {self.GameID} Succeeded')
+
         except Exception as e:
-            print(f'BatchGameImporter.ImportGame() failed on GameID {self.GameID}: {e}')
+            print(f'BatchGameImporter.ImportGame failed on GameID {self.GameID}: {e}')
     
     def ImportTeams(self):
 
+        Executor.send(f'BatchGameImporter.ImportTeams: Importing GameID {self.HomeID}')
         try:
             self.Writer.run(
                 f"""
@@ -90,10 +97,14 @@ class BatchGameImporter:
                 VALUES (source.TeamID, source.TeamName, source.Modified);
                 """ 
             )
+            Executor.send(f'BatchGameImporter.ImportTeams: Importing TeamID {self.HomeID} Succeeded')
 
+        except pyodbc.IntegrityError:
+            print(f'BatchGameImporter.ImportTeams() failed on TeamID {self.HomeID}, TeamName {self.HomeName}: Data Already Exists. Moving on.')
         except Exception as e:
             print(f'BatchGameImporter.ImportTeams() failed on TeamID {self.HomeID}, TeamName {self.HomeName}: {e}')
 
+        Executor.send(f'BatchGameImporter.ImportTeams: Importing GameID {self.AwayID}')
         try:
             self.Writer.run(
                 f"""
@@ -117,7 +128,10 @@ class BatchGameImporter:
                 VALUES (source.TeamID, source.TeamName, source.Modified);
                 """ 
             )
+            Executor.send(f'BatchGameImporter.ImportTeams: Importing TeamID {self.AwayID} Succeeded')   
 
+        except pyodbc.IntegrityError:
+            print(f'BatchGameImporter.ImportTeams() failed on TeamID {self.AwayID}, TeamName {self.AwayName}: Data Already Exists. Moving on.')
         except Exception as e:
             print(f'BatchGameImporter.ImportTeams() failed on TeamID {self.AwayID}, TeamName {self.AwayName}: {e}')
         
@@ -125,6 +139,7 @@ class BatchGameImporter:
 
     def ImportVenues(self):
 
+        Executor.send(f'BatchGameImporter.ImportVenues: Importing VenueID {self.VenueID}') 
         try:
             self.Writer.run(
                 f"""
@@ -146,12 +161,14 @@ class BatchGameImporter:
                 VALUES (source.VenueID, source.VenueName);
                 """ 
             )
+            Executor.send(f'BatchGameImporter.ImportVenues: Importing VenueID {self.VenueID} Succeeded') 
 
         except Exception as e:
             print(f'BatchGameImporter.ImportVenues() failed on VenueID {self.VenueID}, VenueName {self.VenueName}: {e}')
 
     def DailyBattingStats(self):
 
+        Executor.send(f'BatchGameImporter.DailyBattingStats: Importing BattingData for GameID {self.GameID}') 
         ### Pull Data for Home Players
         homePlayers = pd.DataFrame(self.BoxScore['homeBatters']).iloc[1:]
         homePlayers['TeamID'] = self.HomeID
@@ -165,10 +182,11 @@ class BatchGameImporter:
         if homePlayers is not None and len(homePlayers) > 0:
             try: 
                 homePlayers.to_sql('StagingGameLogBatting', con=self.Writer.bulkConnection, schema='MLB', if_exists='append', index=False)
-            except pyodbc.IntegrityError: 
-                print(f'BatchGameImporter.DailyBattingStats() failed on GameID {self.GameID}, HomeTeamID {self.HomeID}: Staging Data Already Exists. Moving on.')
             except Exception as e: 
-                print(f'BatchGameImporter.DailyBattingStats() failed on GameID {self.GameID}, HomeTeamID {self.HomeID}: {e}')
+                if 'Violation of PRIMARY KEY constraint' in str(e) or 'UNIQUE' in str(e) or 'Integrity' in str(e):
+                    print(f'BatchGameImporter.DailyBattingStats() failed on GameID {self.GameID}, HomeTeamID {self.HomeID}: Staging Data Already Exists. Moving on.')
+                else:
+                    print(f'BatchGameImporter.DailyBattingStats() failed on GameID {self.GameID}, HomeTeamID {self.HomeID}: {e}')
 
         del homePlayers
 
@@ -184,15 +202,19 @@ class BatchGameImporter:
         if awayPlayers is not None and len(awayPlayers) > 0:
             try: 
                 awayPlayers.to_sql('StagingGameLogBatting', con=self.Writer.bulkConnection, schema='MLB', if_exists='append', index=False)
-            except pyodbc.IntegrityError: 
-                print(f'BatchGameImporter.DailyBattingStats() failed on GameID {self.GameID}, AwayTeamID {self.AwayID}: Staging Data Already Exists. Moving on.')
             except Exception as e: 
-                print(f'BatchGameImporter.DailyBattingStats() failed on GameID {self.GameID}, AwayTeamID {self.AwayID}: {e}')
+                if 'Violation of PRIMARY KEY constraint' in str(e) or 'UNIQUE' in str(e) or 'Integrity' in str(e):
+                    print(f'BatchGameImporter.DailyBattingStats() failed on GameID {self.GameID}, AwayTeamID {self.AwayID}: Staging Data Already Exists. Moving on.')
+                else:
+                    print(f'BatchGameImporter.DailyBattingStats() failed on GameID {self.GameID}, AwayTeamID {self.AwayID}: {e}')
 
         del awayPlayers 
 
+        Executor.send(f'BatchGameImporter.DailyBattingStats: Importing BattingData for GameID {self.GameID} Succeeded') 
+
     def DailyPitchingStats(self):
         
+        Executor.send(f'BatchGameImporter.DailyPitchingStats: Importing PitchingData for GameID {self.GameID}') 
         ### Pull Data for Home Pitchers
         homePitchers = pd.DataFrame(self.BoxScore['homePitchers']).iloc[1:]
         homePitchers['TeamID'] = self.HomeID
@@ -205,10 +227,11 @@ class BatchGameImporter:
         if homePitchers is not None and len(homePitchers) > 0:
             try: 
                 homePitchers.to_sql('StagingGameLogPitching', con=self.Writer.bulkConnection, schema='MLB', if_exists='append', index=False)
-            except pyodbc.IntegrityError: 
-                print(f'BatchGameImporter.DailyPitchingStats() failed on GameID {self.GameID}, HomeTeamID {self.HomeID}: Staging Data Already Exists. Moving on.')
             except Exception as e:
-                print(f'BatchGameImporter.DailyPitchingStats() failed on GameID {self.GameID}, HomeTeamID {self.HomeID}: {e}')
+                if 'Violation of PRIMARY KEY constraint' in str(e) or 'UNIQUE' in str(e) or 'Integrity' in str(e):
+                    print(f'BatchGameImporter.DailyPitchingStats() failed on GameID {self.GameID}, HomeTeamID {self.HomeID}: Staging Data Already Exists. Moving on.')
+                else:
+                    print(f'BatchGameImporter.DailyPitchingStats() failed on GameID {self.GameID}, HomeTeamID {self.HomeID}: {e}')
 
         del homePitchers
 
@@ -224,51 +247,91 @@ class BatchGameImporter:
         if awayPitchers is not None and len(awayPitchers) > 0:
             try: 
                 awayPitchers.to_sql('StagingGameLogPitching', con=self.Writer.bulkConnection, schema='MLB', if_exists='append', index=False)
-            except pyodbc.IntegrityError: 
-                print(f'BatchGameImporter.DailyPitchingStats() failed on GameID {self.GameID}, AwayTeamID {self.AwayID}: Staging Data Already Exists. Moving on.')
             except Exception as e: 
-                print(f'BatchGameImporter.DailyPitchingStats() failed on GameID {self.GameID}, AwayTeamID {self.AwayID}: {e}')
+                if 'Violation of PRIMARY KEY constraint' in str(e) or 'UNIQUE' in str(e) or 'Integrity' in str(e):
+                    print(f'BatchGameImporter.DailyPitchingStats() failed on GameID {self.GameID}, AwayTeamID {self.AwayID}: Staging Data Already Exists. Moving on.')
+                else:
+                    print(f'BatchGameImporter.DailyPitchingStats() failed on GameID {self.GameID}, AwayTeamID {self.AwayID}: {e}')
 
         del awayPitchers
 
+        Executor.send(f'BatchGameImporter.DailyPitchingStats: Importing PitchingData for GameID {self.GameID} Succeeded') 
+
     def ImportPlayers(self):
 
-        for i in self.homeBatterIDs + self.awayBatterIDs + self.homePicherIDs + self.awayPicherIDs:
-                
-            playerInfo = statsapi.player_stat_data(i)
-
-            PlayerID = i
-            IsActive = int(playerInfo['active'])
-            PlayerName = f'{playerInfo['first_name'].replace("'", "")} {playerInfo['last_name'].replace("'", "")}'
-            PlayerNameFirst = playerInfo['first_name'].replace("'", "")
-            PlayerNameLast = playerInfo['last_name'].replace("'", "")
-            CurrentTeamID = self.getTeamID(playerInfo['current_team'])
-            Position = playerInfo['position']
-            BatHand = self.toHandedness(playerInfo['bat_side'])
-            ThrowHand = self.toHandedness(playerInfo['pitch_hand'])
-            IsActive = int(playerInfo['active'])
-
+        Executor.send(f'BatchGameImporter.ImportPlayers: Importing Player Data for GameID {self.GameID}') 
+        
+        # Get unique player IDs to avoid duplicate API calls
+        allPlayerIDs = list(set(self.homeBatterIDs + self.awayBatterIDs + self.homePicherIDs + self.awayPicherIDs))
+        
+        if not allPlayerIDs:
+            Executor.send(f'BatchGameImporter.ImportPlayers: No players to import for GameID {self.GameID}')
+            return
+        
+        # Check which players already exist in database to avoid unnecessary API calls
+        try:
+            existingPlayers = self.Writer.run(f"SELECT PlayerID FROM mlb.DimPlayers WHERE PlayerID IN ({','.join(map(str, allPlayerIDs))})")
+            existingPlayerIDs = set([row[0] for row in existingPlayers]) if existingPlayers else set()
+            playersToFetch = [pid for pid in allPlayerIDs if pid not in existingPlayerIDs]
+        except Exception as e:
+            print(f'BatchGameImporter.ImportPlayers() failed checking existing players: {e}')
+            playersToFetch = allPlayerIDs
+        
+        Executor.send(f'BatchGameImporter.ImportPlayers: Found {len(allPlayerIDs) - len(playersToFetch)} existing players, fetching {len(playersToFetch)} new/updated players')
+        
+        # Collect all player data before executing SQL
+        playerDataList = []
+        
+        for playerID in playersToFetch:
             try:
+                playerInfo = statsapi.player_stat_data(playerID)
+                
+                playerData = {
+                    'PlayerID': playerID,
+                    'PlayerName': f'{playerInfo["first_name"].replace("\'", "")} {playerInfo["last_name"].replace("\'", "")}',
+                    'PlayerNameFirst': playerInfo['first_name'].replace("'", ""),
+                    'PlayerNameLast': playerInfo['last_name'].replace("'", ""),
+                    'CurrentTeamID': self.getTeamID(playerInfo['current_team']),
+                    'Position': playerInfo['position'],
+                    'BatHand': self.toHandedness(playerInfo['bat_side']),
+                    'ThrowHand': self.toHandedness(playerInfo['pitch_hand']),
+                    'IsActive': int(playerInfo['active'])
+                }
+                playerDataList.append(playerData)
+                
+            except Exception as e:
+                print(f'BatchGameImporter.ImportPlayers() failed fetching data for PlayerID {playerID}: {e}')
+                continue
+        
+        # Execute single batch MERGE with all players
+        if playerDataList:
+            try:
+                # Build UNION ALL query for all players
+                unionQueries = []
+                for p in playerDataList:
+                    unionQueries.append(
+                        f"""SELECT {p['PlayerID']} as PlayerID,
+                        '{p['PlayerName']}' as PlayerName,
+                        '{p['PlayerNameFirst']}' as PlayerNameFirst,
+                        '{p['PlayerNameLast']}' as PlayerNameLast,
+                        {p['CurrentTeamID']} as CurrentTeamID,
+                        '{p['Position']}' as Position,
+                        '{p['BatHand']}' as BatHand,
+                        '{p['ThrowHand']}' as ThrowHand,
+                        {p['IsActive']} as IsActive"""
+                    )
+                
+                sourceQuery = " UNION ALL ".join(unionQueries)
+                
                 self.Writer.run(
                     f"""
                     MERGE INTO mlb.DimPlayers AS target 
-                    USING ( 
-                        SELECT {PlayerID} as PlayerID,
-                        '{PlayerName}' as PlayerName,
-                        '{PlayerNameFirst}' as PlayerNameFirst,
-                        '{PlayerNameLast}' as PlayerNameLast,
-                        {CurrentTeamID} as CurrentTeamID,
-                        '{Position}' as Position,
-                        '{BatHand}' as BatHand,
-                        '{ThrowHand}' as ThrowHand,
-                        {IsActive} as IsActive
-                    )
+                    USING ({sourceQuery})
                     AS source 
                     ON target.PlayerID = source.PlayerID
-                
+                    
                     WHEN MATCHED THEN 
                     UPDATE SET 
-                        PlayerID = source.PlayerID, 
                         PlayerName = source.PlayerName,
                         PlayerNameFirst = source.PlayerNameFirst,
                         PlayerNameLast = source.PlayerNameLast,
@@ -281,11 +344,13 @@ class BatchGameImporter:
                     WHEN NOT MATCHED THEN 
                     INSERT (PlayerID, PlayerName, PlayerNameFirst, PlayerNameLast, CurrentTeamID, Position, BatHand, ThrowHand, IsActive)
                     VALUES (source.PlayerID, source.PlayerName, source.PlayerNameFirst, source.PlayerNameLast, source.CurrentTeamID, source.Position, source.BatHand, source.ThrowHand, source.IsActive);
-                    """ 
+                    """
                 )
-
+                
+                Executor.send(f'BatchGameImporter.ImportPlayers: Imported {len(playerDataList)} players for GameID {self.GameID} Succeeded')
+                
             except Exception as e:
-                print(f'BatchGameImporter.ImportPlayers() failed on PlayerID {PlayerID}: {e}')
+                print(f'BatchGameImporter.ImportPlayers() batch merge failed for GameID {self.GameID}: {e}')
 
     @staticmethod
     def toGameTypeID(val):
